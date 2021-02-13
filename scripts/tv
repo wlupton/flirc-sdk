@@ -1,0 +1,13 @@
+print TV settings
+
+delay 500
+print up channel
+record -t up
+
+delay 500
+print down channel
+record -t down
+
+delay 500
+print previous channel
+record -t h

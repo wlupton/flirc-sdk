@@ -98,11 +98,67 @@ CMDHANDLER(version)
 	return 0;
 }
 
+/* XXX the 'history' option doesn't work? */
 APPCMD(version, &version,
 		"Print the application version and device version if connected",
 		"usage: version [history]\n"
 		" history     shows the history log",
 		NULL);
+
+CMDHANDLER(print)
+{
+  printf("\n#");
+  for (int i = 0; i < argc; i++)
+  {
+    if (i > 0) printf(" ");
+    printf("%s", argv[i]);
+  }
+  printf("\n");
+  return argc;
+}
+
+APPCMD(print, &print,
+       "Print the remaining arguments on standard output",
+       "usage: print `<arg...>`\n"
+       "the output is preceded by a newline and `#`",
+       NULL);
+
+CMDHANDLER(delay)
+{
+	if (enough_args(argc, 1) < 0) {
+		run_cmd_line("help delay", NULL);
+		return 0;
+	}
+
+	delay_ms(atoi(argv[0]));
+  return 1;
+}
+
+APPCMD(delay, &delay,
+       "Delay for the specified number of milliseconds",
+       "usage: delay `<ms>`\n"
+       "this is useful for separating `record` commands in scripts",
+       NULL);
+
+static int tries_value = 1;
+
+CMDHANDLER(tries)
+{
+  if (enough_args(argc, 1) < 0) {
+		run_cmd_line("help tries", NULL);
+		return 0;
+	}
+
+  tries_value = atoi(argv[0]);
+
+  return 1;
+}
+
+APPCMD(tries, &tries,
+       "Set the number of tries when using the -t option",
+       "usage: tries <tries>\n"
+       "this defaults to 1",
+       NULL);
 
 CMDHANDLER(waet)
 {
@@ -119,21 +175,24 @@ APPCMD(wait, &waet,
 
 CMDHANDLER(record)
 {
-	if (enough_args(argc, 1) < 0) {
+  int tries = dict_has_key(opts, "tries") ? tries_value : 1;
+
+  if (enough_args(argc, 1) < 0) {
 		run_cmd_line("help record", NULL);
 		return 0;
 	}
 
-	printf(" Press any button on the remote to link it with '%s'\n\n",
-			argv[0]);
+  const char *repeat = tries > 1 ? " (then repeat)" : "";
+  printf(" Press any button on the remote to link it with '%s'%s\n\n",
+         argv[0], repeat);
 
-	if (strcmp(argv[0], "toggle") == 0) {
+  if (strcmp(argv[0], "toggle") == 0) {
 
 		if (fl_major_version() >= 4 && fl_minor_version() >= 6) {
 			if (fl_record_toggle(100) == EOK) {
-				printf("  Succesfully recorded button\n\n");
+				printf("  Successfully recorded button\n\n");
 			} else {
-				printf("Error, button exists\n");
+				printf("Error: Button exists\n");
 			}
 		} else {
 			printf("  Supported on gen2, v4.6 or higher\n");
@@ -142,23 +201,31 @@ CMDHANDLER(record)
 		return 1;
 	}
 
+  int count;
+  for (count = 0; count < tries && fl_set_record(argv[0], 100) == EOK;
+       count++) {
+    printf("  Successfully recorded button\n\n");
+  }
+  if (count == 0) {
+    printf("Error: Button exists\n");
+  }
 
-	if (fl_set_record(argv[0], 100) == EOK)
-		printf("  Succesfully recorded button\n\n");
-	else
-		printf("Error, button exists\n");
-
-	return 1;
+  return 1;
 }
 
+START_CMD_OPTS(record_opts)
+	CMD_OPT(tries, 't', "tries", "try <tries> times")
+END_CMD_OPTS;
 
-APPCMD(record, &record,
+APPCMD_OPT(record, &record,
 		"Record infrared buttons and link them to HID keys",
 		"usage: \n"
 		"  record '<keyboard key>'\n"
+		"  record -t '<n>' '<keyboard key>'\n"
 		"examples:		\n"
 		"  flirc record a   \n"
 		"  flirc record space\n"
+		"  flirc record -t 2 up\n"
 		"valid commands:\n"
 		"  a-z <any single letter>\n"
 		"  return, enter, escape, backspace, delete, tab, \n"
@@ -171,23 +238,37 @@ APPCMD(record, &record,
 		"  suspend\n"
 		"Other: \n"
 		"  toggle [enbables/disables] flirc\n",
-		NULL);
+		NULL, record_opts);
 
 CMDHANDLER(record_lp)
 {
-	int rq;
+  int tries = dict_has_key(opts, "tries") ? tries_value : 1;
 
-	if (enough_args(argc, 1) < 0) {
+  if (enough_args(argc, 1) < 0) {
 		run_cmd_line("help record_lp", NULL);
 		return argc;
 	}
 
-	printf(" Press any button on the remote to link it with '%s'\n\n",
-			argv[0]);
+  const char *repeat = tries > 1 ? " (then repeat)" : "";
+	printf(" Press any button on the remote to link it with '%s'%s\n\n",
+			argv[0], repeat);
 
-	rq = fl_set_record_lp(argv[0], 100);
+  // continue if button exists in case this is a remote that generates
+  // different codes on successive key presses
+  int rq = EOK;
+  for (int count = 0; count < tries &&
+       ((rq = fl_set_record_lp(argv[0], 100)) == EOK ||
+        rq == -ERR_BUTTON_EXISTS);
+       count++)
+  {
+    if (rq == EOK) {
+      printf("  Successfully recorded button\n\n");
+    }
+  }
 
-	switch (rq) {
+  switch (rq) {
+	case (EOK):
+		break;
 	case (-ERR_KEY_NOT_FOUND):
 		printf("Error: You must first record this remote button with"
 				" the regular flirc_util record command.\n"
@@ -201,9 +282,6 @@ CMDHANDLER(record_lp)
 	case (-EWRONGDEV):
 		printf("Error: Current device does not support this feature\n");
 		break;
-	case (EOK):
-		printf("  Succesfully recorded button\n\n");
-		break;
 	default:
 		printf("Error: Unable to pair key\n");
 		break;
@@ -212,8 +290,12 @@ CMDHANDLER(record_lp)
 	return argc;
 }
 
-APPCMD(record_lp, &record_lp,
-"Record a long pres key",
+START_CMD_OPTS(record_lp_opts)
+	CMD_OPT(tries, 't', "tries", "try <tries> times")
+END_CMD_OPTS;
+
+APPCMD_OPT(record_lp, &record_lp,
+"Record a long press key (-t option is as for the record command)",
 "\n"
 "This will record a secondary function to an already recorded remote control \n"
 "button. Once a button is converted to a long press button, a short press of \n"
@@ -238,8 +320,9 @@ APPCMD(record_lp, &record_lp,
 "  rewind, fast_forward, next_track, prev_track \n"
 "System Keys: \n"
 "  suspend\n",
-NULL);
+NULL, record_lp_opts);
 
+// XXX haven't supported 'tries' yet; will be similar to report_lp
 CMDHANDLER(record_macro)
 {
 	int rq;
@@ -266,7 +349,7 @@ CMDHANDLER(record_macro)
 		printf("Error: Current device does not support this feature\n");
 		break;
 	case (EOK):
-		printf("  Succesfully recorded button\n\n");
+		printf("  Successfully recorded button\n\n");
 		break;
 	default:
 		printf("Error: Unable to pair key\n");
@@ -312,44 +395,73 @@ NULL);
 
 CMDHANDLER(record_api)
 {
-	if (enough_args(argc, 2) < 0) {
+  int tries = dict_has_key(opts, "tries") ? tries_value : 1;
+
+  if (enough_args(argc, 2) < 0) {
 		run_cmd_line("help record_api", NULL);
 		return argc;
 	}
 
+  int mode = dict_has_key(opts, "lp") ? RM_LONG_PRESS :
+             dict_has_key(opts, "macro") ? RM_MACRO : RM_NORMAL;
 
-	if (strtol(argv[0], NULL, 16) == 2) {
-		printf("Consumer Usage Table: 0x%X\n",
-				(int) strtol(argv[1], NULL, 16));
-		if (fl_set_record_api_new(
-				strtol(argv[0], NULL, 16),
-				strtol(argv[1], NULL, 16) & 0xFF,
-				strtol(argv[1], NULL, 16) >> 8,
-				100) == EOK) {
-			printf("  Succesfully recorded button\n\n");
-			return 2;
-		}
-	}
+  int argv0 = (int) strtol(argv[0], NULL, 0);
+  int argv1 = (int) strtol(argv[1], NULL, 0);
+  int argv2 = argc > 2 ? (int) strtol(argv[2], NULL, 0) : 0;
+
+  // printf("argc %d\n", argc);
+  // for (int i = 0; i < argc; i++) {
+  //   printf("  %s %#x\n", argv[i], (int) strtol(argv[i], NULL, 16));
+  // }
+
+	// note this checks for literal "2", not numeric 2
+  if (strcmp(argv[0], "2") == 0) {
+    // printf("argv[0] == 2 (2 lo hi)\n");
+    // printf("(new) passing %#x %#x %#x\n", argv0,
+    //        argv1 & 0xFF, argv1 >> 8);
+    printf("Consumer Usage Table: %#x\n", argv1);
+    for (int count = 0; count < tries &&
+         fl_set_record_api_new(
+                            argv0, argv1 & 0xFF, argv1 >> 8, 100) == EOK;
+         count++) {
+      printf("  Successfully recorded button\n\n");
+    }
+    return 2;
+  }
 
 	if (argc > 2) {
-		if (fl_set_record_api_new(atoi(argv[0]), atoi(argv[1]),
-					atoi(argv[2]), 100) == EOK) {
-			printf("  Succesfully recorded button\n\n");
-			return 3;
-		}
-	}
+    // printf("argc > 2 (#0 #1 #2)\n");
+    // printf("(new) passing %#x %#x %#x\n", argv0, argv1, argv2);
+    for (int count = 0; count < tries &&
+                        fl_set_record_api_new(argv0, argv1,
+                                              argv2, 100) == EOK;
+         count++) {
+      printf("  Successfully recorded button\n\n");
+    }
+    return 3;
+  }
 
-	printf("hit a key on the remote to be paired with %d %d\n",
-			atoi(argv[0]), atoi(argv[1]));
+  // printf("argc == 2 (%d #0 #1)\n", mode);
+  const char *repeat = tries > 1 ? " (then repeat)" : "";
+  printf("hit any button on the remote to pair it with %#x %#x%s\n",
+         argv0, argv1, repeat);
 
-	if (fl_set_record_api(RM_NORMAL,
-				atoi(argv[0]), atoi(argv[1]), 100) == EOK)
-		printf("  Succesfully recorded button\n\n");
-
-	return 2;
+  // printf("(old) passing %#x %#x %#x\n", mode, argv0, argv1);
+  for (int count = 0; count < tries &&
+                      fl_set_record_api(mode, argv0, argv1, 100) == EOK;
+       count++) {
+    printf("  Successfully recorded button\n\n");
+  }
+  return 2;
 }
 
-APPCMD(record_api, &record_api,
+START_CMD_OPTS(record_api_opts)
+	CMD_OPT(lp, 'l', "lp", "long press")
+	CMD_OPT(macro, 'm', "macro", "macro")
+	CMD_OPT(tries, 't', "tries", "try <tries> times")
+END_CMD_OPTS;
+
+APPCMD_OPT(record_api, &record_api,
 	"Advanced button recording",
 	"Send the raw HID value down to flirc to be linked with button recorded"
 	"\nusage:\n"
@@ -370,7 +482,7 @@ APPCMD(record_api, &record_api,
 	"RIGHT CMD|WIN          128\n"
 	"\n"
 	"To record Control + Shift, logically or 1 & 2 to make 3",
-	NULL)
+	NULL, record_api_opts)
 
 CMDHANDLER(delete_index)
 {
@@ -415,7 +527,7 @@ APPCMD(delete, &delete,
 CMDHANDLER(normal)
 {
 	if (fl_set_normal() == EOK)
-		printf("Succesfully set device to normal operation\n");
+		printf("Successfully set device to normal operation\n");
 
 	return 0;
 }
@@ -532,7 +644,7 @@ CMDHANDLER(dfu)
 		result = fl_leave_bootloader();
 
 		if (result < EOK)
-			printf("Error, could not leave bootloader\n");
+			printf("Error: Could not leave bootloader\n");
 		else
 			printf("Done!\n");
 
@@ -549,7 +661,7 @@ CMDHANDLER(dfu)
 			return 1;
 		}
 	} else {
-		printf("Error: invalid dfu option\n");
+		printf("Error: Invalid dfu option\n");
 		run_cmd_line("help dfu", NULL);
 		return 1;
 	}
@@ -589,7 +701,7 @@ CMDHANDLER(upgrade)
 		/* Send image to device */
 		if (fl_upgrade_fw(imageLocation, VID, manufacturer,
 					NULL, NULL) < 0) {
-			printf("Error, upload failed\n");
+			printf("Error: Upload failed\n");
 		}
 
 		return 1;
@@ -925,7 +1037,7 @@ CMDHANDLER(mode)
 			printf("disabling iospirit, enabling hid\n");
 		}
 	} else {
-		printf("Error, button exists\n");
+		printf("Error: Button exists\n");
 	}
 
 	return argc;

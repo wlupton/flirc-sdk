@@ -1,0 +1,31 @@
+print number keys
+
+delay 500
+record -t 1
+
+delay 500
+record -t 2
+
+delay 500
+record -t 3
+
+delay 500
+record -t 4
+
+delay 500
+record -t 5
+
+delay 500
+record -t 6
+
+delay 500
+record -t 7
+
+delay 500
+record -t 8
+
+delay 500
+record -t 9
+
+delay 500
+record -t 0

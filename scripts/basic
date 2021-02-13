@@ -1,0 +1,33 @@
+print basic settings
+
+delay 500
+record -t up
+
+delay 500
+record -t down
+
+delay 500
+record -t left
+
+delay 500
+record -t right
+
+delay 500
+print ok (enter)
+record -t enter
+
+delay 500
+print exit (escape)
+record -t escape
+
+delay 500
+print info
+record -t i
+
+delay 500
+print menu
+record -t m
+
+delay 500
+print schedule (guide)
+record -t s

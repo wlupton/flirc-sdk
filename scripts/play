@@ -1,0 +1,35 @@
+print play controls
+
+delay 500
+print small jump backward
+record -t left
+
+delay 500
+print big jump backward
+# XXX lp doesn't seem to work here
+record -t up
+
+delay 500
+print play
+record -t p
+
+delay 500
+print small jump forward
+record -t right
+
+delay 500
+print big jump forward
+# XXX lp doesn't seem to work here
+record -t down
+
+delay 500
+print stop
+record -t escape
+
+delay 500
+print pause
+record -t p
+
+delay 500
+print record
+record -t r

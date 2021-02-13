@@ -96,6 +96,8 @@ int main(int argc, const char * argv[])
 	rq = fl_open_device(0x20A0, "flirc.tv");
 
 	if (argc > 1 && (rq < 0) && strcmp(argv[1], "help") != 0 &&
+			(strcmp(argv[1], "delay") != 0) &&
+			(strcmp(argv[1], "print") != 0) &&
 			(strcmp(argv[1], "upgrade") != 0) &&
 			(strcmp(argv[1], "wait") != 0)) {
 		printf("device disconnected, can't run command\n");

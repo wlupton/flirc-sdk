@@ -1,0 +1,10 @@
+print power commands; names are /home/myth/bin/ir-handle arguments
+
+delay 500
+print power-on
+record -t F1
+
+# XXX lp doesn't seem to work on the power button
+#delay 500
+#print power-off (press the same button as for power-on)
+#record_lp F2

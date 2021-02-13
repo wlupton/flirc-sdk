@@ -1,0 +1,33 @@
+print hauppauge function keys
+
+delay 500
+print power-on (power)
+record -t F1
+
+delay 500
+print power-off (pictures)
+record -t F2
+
+delay 500
+print vol+
+record -t F3
+
+delay 500
+print mute
+record -t F4
+
+delay 500
+print vol-
+record -t F5
+
+delay 500
+print coax (tv)
+record -t F6
+
+delay 500
+print hdmi (go)
+record -t F7
+
+delay 500
+print optical (videos)
+record -t F8

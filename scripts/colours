@@ -1,0 +1,17 @@
+print coloured menu buttons
+
+delay 500
+print red (1)
+record -t F9
+
+delay 500
+print green (2)
+record -t F10
+
+delay 500
+print yellow (3)
+record -t F11
+
+delay 500
+print blue (4)
+record -t F12

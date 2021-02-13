@@ -58,3 +58,11 @@ CFLAGS += -O0 -g
 endif
 
 INSTALL_SCRIPT = targets/install
+
+# WL https://stackoverflow.com/questions/58278260 etc.
+ifeq "$(HOSTOS)" "DARWIN"
+  CPPFLAGS += -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+  LDFLAGS += -Xlinker -syslibroot -Xlinker /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+  LDFLAGS += -L/usr/local/opt/readline/lib
+
+endif
